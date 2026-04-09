@@ -45,8 +45,11 @@ public class GameController {
             @ApiImplicitParam(name = "limit",value = "每页条数",defaultValue = "10",dataType = "int",example = "3",required = true)
     })
     public ApiResult list(@PathVariable int status,@PathVariable int curpage,@PathVariable int limit) {
-        //TODO
-        return null;
+        //获取活动列表
+        Page<CardGame> list = gameService.lambdaQuery()
+                .eq(status != -1, CardGame::getStatus, status)
+                .page(new Page<>(curpage, limit));
+        return new ApiResult<>(1,"成功",new PageBean<>(list));
     }
 
     @GetMapping("/info/{gameid}")
@@ -55,8 +58,8 @@ public class GameController {
             @ApiImplicitParam(name="gameid",value = "活动id",example = "1",required = true)
     })
     public ApiResult<CardGame> info(@PathVariable int gameid) {
-        //TODO
-        return null;
+        //获取活动信息
+        return new ApiResult<>(1,"成功",gameService.getById(gameid));
     }
 
     @GetMapping("/products/{gameid}")
@@ -65,8 +68,8 @@ public class GameController {
             @ApiImplicitParam(name="gameid",value = "活动id",example = "1",required = true)
     })
     public ApiResult<List<CardProductDto>> products(@PathVariable int gameid) {
-        //TODO
-        return null;
+        //根据gameid获取奖品信息list
+        return new ApiResult<>(1,"成功",loadService.getByGameId(gameid));
     }
 
     @GetMapping("/hit/{gameid}/{curpage}/{limit}")
@@ -77,8 +80,11 @@ public class GameController {
             @ApiImplicitParam(name = "limit",value = "每页条数",defaultValue = "10",dataType = "int",example = "3",required = true)
     })
     public ApiResult<PageBean<ViewCardUserHit>> hit(@PathVariable int gameid,@PathVariable int curpage,@PathVariable int limit) {
-        //TODO
-        return null;
+        //获取指定活动中奖列表
+        Page<ViewCardUserHit> list = hitService.lambdaQuery()
+                .eq(ViewCardUserHit::getGameid, gameid)
+                .page(new Page<>(curpage, limit));
+        return new ApiResult<>(1,"成功",new PageBean<>(list));
     }
 
 

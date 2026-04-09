@@ -53,7 +53,35 @@ public class ActController {
             @ApiImplicitParam(name="gameid",value = "活动id",example = "1",required = true)
     })
     public ApiResult info(@PathVariable int gameid){
-        //TODO
-        return null;
+        //可以将所有本活动相关的信息放在一个Map中集中返回，方便swagger中查看
+        Map<String,Object> map = new HashMap<>();
+        map.put(RedisKeys.INFO+gameid,redisUtil.get(RedisKeys.INFO+gameid));
+
+        List<Object> tokenList = redisUtil.lrange(RedisKeys.TOKENS + gameid,0,-1);
+        Map<String, Object> tokenMap = new HashMap<>();
+        if (tokenList != null && !tokenList.isEmpty()) {
+            for (Object token : tokenList){
+                try {
+                    String tokenKey = RedisKeys.TOKEN + gameid + "_" + token;
+                    Object tokenValue = redisUtil.get(tokenKey);
+                    if (tokenValue != null) {
+                        long tokenTimestamp = Long.parseLong(token.toString()) / 1000;
+                        Date tokenDate = new Date(tokenTimestamp);
+                        String dateStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(tokenDate);
+                        tokenMap.put(dateStr, tokenValue);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        map.put(RedisKeys.TOKENS+gameid, tokenMap);
+
+        map.put(RedisKeys.MAXGOAL+gameid, redisUtil.hmget(RedisKeys.MAXGOAL+gameid));
+        map.put(RedisKeys.MAXENTER+gameid, redisUtil.hmget(RedisKeys.MAXENTER+gameid));
+        map.put(RedisKeys.RANDOMRATE+gameid, redisUtil.hmget(RedisKeys.RANDOMRATE+gameid));
+        map.put("now",new SimpleDateFormat("yyyy/MM/dd HH:mm:ss").format(new Date()));
+
+        return new ApiResult(200,"缓存信息",map);
     }
 }
