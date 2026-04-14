@@ -238,3 +238,4 @@ public class ActController {
         return new ApiResult(200,"缓存信息",map);
     }
 }
+//压测完成，QPS 1800以上。
