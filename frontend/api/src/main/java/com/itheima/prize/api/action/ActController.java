@@ -92,17 +92,18 @@ public class ActController {
                 return new ApiResult(-1,"您已达到最大中奖数",null);
             }
         }
+        if(redisUtil.setNx(RedisKeys.USERGAME + gameid + "_" + userInfo.getId(), 1)){
+            //mq异步通知
+            CardUserGame cardUserGame = new CardUserGame();
+            cardUserGame.setUserid(userInfo.getId());
+            cardUserGame.setGameid(gameid);
+            cardUserGame.setCreatetime(new Date());
+            //RabbitMq传输对象的时候，可以使用FastJson将对象转为字符串后传输
+            String message = JSON.toJSONString(cardUserGame);
+            rabbitTemplate.convertAndSend(RabbitKeys.EXCHANGE_DIRECT,RabbitKeys.QUEUE_PLAY,message);
+        }
 
         Long token = luaScript.tokenCheck(RedisKeys.TOKENS+gameid,String.valueOf(new Date().getTime()));
-        //mq异步通知
-        CardUserGame cardUserGame = new CardUserGame();
-        cardUserGame.setUserid(userInfo.getId());
-        cardUserGame.setGameid(gameid);
-        cardUserGame.setCreatetime(new Date());
-        //RabbitMq传输对象的时候，可以使用FastJson将对象转为字符串后传输
-        String message = JSON.toJSONString(cardUserGame);
-        rabbitTemplate.convertAndSend(RabbitKeys.EXCHANGE_DIRECT,RabbitKeys.QUEUE_PLAY,message);
-
         if(token == 0){
             //抽奖次数+1
             redisUtil.incr(RedisKeys.USERENTER + gameid + "_" + userInfo.getId(), 1);
