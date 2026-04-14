@@ -4,6 +4,11 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import javax.annotation.sql.DataSourceDefinition;
 import java.io.Serializable;
 import java.util.Date;
 
@@ -12,6 +17,9 @@ import java.util.Date;
  * @TableName card_user_game
  */
 @TableName(value ="card_user_game")
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class CardUserGame implements Serializable {
     /**
      * 

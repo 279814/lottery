@@ -37,6 +37,11 @@
             <artifactId>hutool-all</artifactId>
             <version>4.5.8</version>
         </dependency>
+        <dependency>
+            <groupId>com.itheima.prize</groupId>
+            <artifactId>commons</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
 
 
     </dependencies>

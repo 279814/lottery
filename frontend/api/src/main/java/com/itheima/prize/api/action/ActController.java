@@ -13,6 +13,7 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
+import io.swagger.models.auth.In;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,8 +44,91 @@ public class ActController {
             @ApiImplicitParam(name="gameid",value = "活动id",example = "1",required = true)
     })
     public ApiResult<Object> act(@PathVariable int gameid, HttpServletRequest request){
-        //TODO
-        return null;
+        //获取活动信息
+        Object game = redisUtil.get(RedisKeys.INFO + gameid);
+        if (game == null) {
+            return new ApiResult(-1,"活动未开始",null);
+        }
+        CardGame gameInfo = (CardGame) game;
+        //判断活动是否开始
+        if (gameInfo.getStarttime().getTime() > System.currentTimeMillis()) {
+            return new ApiResult(-1,"活动未开始",null);
+        }
+        //判断活动是否结束
+        if (gameInfo.getEndtime().getTime() < System.currentTimeMillis()) {
+            return new ApiResult(-1,"活动已结束",null);
+        }
+        //判断用户是否登录
+        HttpSession session = request.getSession();
+        Object user = session.getAttribute("user");
+        if (user == null) {
+            return new ApiResult(-1,"未登录",null);
+        }
+        CardUser userInfo = (CardUser) user;
+        //获取用户level
+        Integer level = userInfo.getLevel();
+        //获取活动策略
+        Integer maxGoal = (Integer)redisUtil.hget(RedisKeys.MAXGOAL + gameid, level + "");
+        Integer maxEnter = (Integer)redisUtil.hget(RedisKeys.MAXENTER + gameid, level + "");
+        if(!redisUtil.hasKey(RedisKeys.USERENTER + gameid + "_" + userInfo.getId())){
+            //活动当前还有多少时间
+            long enterTime = gameInfo.getEndtime().getTime() - System.currentTimeMillis();
+            //转成秒
+            long enterTimeSeconds = enterTime / 1000;
+            redisUtil.set(RedisKeys.USERENTER + gameid + "_" + userInfo.getId(), 0, enterTimeSeconds + 1);
+            redisUtil.set(RedisKeys.USERHIT + gameid + "_" + userInfo.getId(), 0, enterTimeSeconds + 1);
+        }
+        //判断抽奖次数
+        if(maxGoal != 0){
+            //判断用户是否超过最大抽奖次数
+            if((Integer)redisUtil.get(RedisKeys.USERENTER + gameid + "_" + userInfo.getId()) >= maxEnter){
+                return new ApiResult(-1,"您的抽奖次数已用完",null);
+            }
+        }
+        //判断中奖次数
+        if(maxGoal != 0){
+            //判断用户是否超过最大中奖次数
+            if((Integer)redisUtil.get(RedisKeys.USERHIT + gameid + "_" + userInfo.getId()) >= maxGoal){
+                return new ApiResult(-1,"您已达到最大中奖数",null);
+            }
+        }
+
+        Long token = luaScript.tokenCheck(RedisKeys.TOKENS+gameid,String.valueOf(new Date().getTime()));
+        //mq异步通知
+        CardUserGame cardUserGame = new CardUserGame();
+        cardUserGame.setUserid(userInfo.getId());
+        cardUserGame.setGameid(gameid);
+        cardUserGame.setCreatetime(new Date());
+        //RabbitMq传输对象的时候，可以使用FastJson将对象转为字符串后传输
+        String message = JSON.toJSONString(cardUserGame);
+        rabbitTemplate.convertAndSend(RabbitKeys.EXCHANGE_DIRECT,RabbitKeys.QUEUE_PLAY,message);
+
+        if(token == 0){
+            //抽奖次数+1
+            redisUtil.incr(RedisKeys.USERENTER + gameid + "_" + userInfo.getId(), 1);
+            return new ApiResult(-1,"奖品已抽光",null);
+        }else if(token == 1){
+            redisUtil.incr(RedisKeys.USERENTER + gameid + "_" + userInfo.getId(), 1);
+            return new ApiResult(0,"未中奖",null);
+        }else{
+            //token有效，中奖！
+            redisUtil.incr(RedisKeys.USERENTER + gameid + "_" + userInfo.getId(), 1);
+            redisUtil.incr(RedisKeys.USERHIT + gameid + "_" + userInfo.getId(), 1);
+            //奖品信息
+            CardProduct cardProduct = (CardProduct)redisUtil.get(RedisKeys.TOKEN + gameid + "_" + token);
+
+            //mq
+            CardUserHit cardUserHit = new CardUserHit();
+            cardUserHit.setUserid(userInfo.getId());
+            cardUserHit.setGameid(gameid);
+            cardUserHit.setProductid(cardProduct.getId());
+            cardUserHit.setHittime(new Date());
+            String msg = JSON.toJSONString(cardUserHit);
+            rabbitTemplate.convertAndSend(RabbitKeys.EXCHANGE_DIRECT,RabbitKeys.QUEUE_HIT,msg);
+
+            return new ApiResult(1,"恭喜中奖",cardProduct);
+        }
+
     }
 
     @GetMapping("/info/{gameid}")
